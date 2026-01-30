@@ -1,15 +1,15 @@
 import { View, Text } from "react-native";
-import React from "react";
+import React, { useMemo } from "react";
 import { useAuthStore } from "../store/authStore";
 import styles from "../assets/styles/profile.styles";
 import { Image } from "expo-image";
 import { formatMemberSince } from "../lib/utils";
 import COLORS from "../constants/colors";
+import { getOptimizedImage } from "../lib/image";
 
 export default function ProfileHeader() {
   const { user } = useAuthStore();
 
-  // ✅ Guard: Handle loading or missing user
   if (!user) {
     return (
       <View
@@ -23,14 +23,18 @@ export default function ProfileHeader() {
     );
   }
 
-  const fallbackAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${
-    user.username || "User"
-  }&backgroundColor=lightblue`;
+  // ✅ Generate fallback avatar
+  const fallbackAvatar = useMemo(() => {
+    return `https://ui-avatars.com/api/?name=${user.username || "Unknown"}`;
+  }, [user?.username]);
+
+  // ✅ Treat fallback as MAIN image
+  const mainProfileImage = fallbackAvatar;
 
   return (
     <View style={styles.profileHeader}>
       <Image
-        source={{ uri: user.profileImage || fallbackAvatar }}
+        source={{ uri: getOptimizedImage(mainProfileImage, 100) }}
         style={styles.profileImage}
         contentFit="cover"
         transition={300}

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { API_URL } from "../../constants/api";
 import { useAuthStore } from "../../store/authStore";
@@ -29,7 +29,7 @@ export default function profile() {
   const { token } = useAuthStore();
   const router = useRouter();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -48,38 +48,59 @@ export default function profile() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token]);
 
-  const renderBookItem = ({ item }) => (
-    <View style={styles.bookItem}>
-      <Image source={{ uri: item.image }} style={styles.bookImage} />
-      <View style={styles.bookInfo}>
-        <Text style={styles.bookTitle}>{item.title}</Text>
-        <View style={styles.ratingContainer}>
-          {renderRatingStars(item.rating)}
-        </View>
-        <Text style={styles.bookCaption} numberOfLines={2}>
-          {item.caption}
-        </Text>
-        <Text style={styles.bookDate}>
-          {new Date(item.createdAt).toLocaleDateString()}
-        </Text>
-      </View>
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => confirmDelete(item._id)}
-      >
-        {deletedBookId === item._id ? (
-          <ActivityIndicator size="small" color={COLORS.primary} />
-        ) : (
-          <Ionicons name="trash-outline" size={20} color={COLORS.primary} />
-        )}
-      </TouchableOpacity>
-    </View>
+  const handleDeleteBook = useCallback(
+    async (bookId) => {
+      try {
+        setDeletedBookId(bookId);
+        const response = await fetch(`${API_URL}/books/${bookId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.message || "Failed to delete book");
+
+        setBooks(books.filter((book) => book._id !== bookId));
+        Alert.alert("Success", "Recommendation deleted successfully!");
+      } catch (error) {
+        Alert.alert(
+          "Error",
+          error.message || "Failed to delete recommendation",
+        );
+      } finally {
+        setDeletedBookId(null);
+      }
+    },
+    [token],
   );
 
-  const renderRatingStars = (rating) => {
+  const confirmDelete = useCallback(
+    (bookId) => {
+      Alert.alert(
+        "Delete Recommendation",
+        "Are you sure you want to delete this recommendation?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => handleDeleteBook(bookId),
+          },
+        ],
+      );
+    },
+    [handleDeleteBook],
+  );
+
+  const renderRatingStars = useCallback((rating) => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
@@ -89,61 +110,53 @@ export default function profile() {
           size={14}
           color={i <= rating ? "#f4b400" : COLORS.textSecondary}
           style={{ marginRight: 2 }}
-        />
+        />,
       );
     }
     return stars;
-  };
-
-  useEffect(() => {
-    fetchData();
   }, []);
 
-  const handleDeleteBook = async (bookId) => {
-    try {
-      setDeletedBookId(bookId);
-      const response = await fetch(`${API_URL}/books/${bookId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.message || "Failed to delete book");
+  const renderBookItem = useCallback(
+    ({ item }) => (
+      <View style={styles.bookItem}>
+        <Image source={{ uri: item.image }} style={styles.bookImage} />
+        <View style={styles.bookInfo}>
+          <Text style={styles.bookTitle}>{item.title}</Text>
+          <View style={styles.ratingContainer}>
+            {renderRatingStars(item.rating)}
+          </View>
+          <Text style={styles.bookCaption} numberOfLines={2}>
+            {item.caption}
+          </Text>
+          <Text style={styles.bookDate}>
+            {new Date(item.createdAt).toLocaleDateString()}
+          </Text>
+        </View>
 
-      setBooks(books.filter((book) => book._id !== bookId));
-      Alert.alert("Success", "Recommendation deleted successfully!");
-    } catch (error) {
-      Alert.alert("Error", error.message || "Failed to delete recommendation");
-    } finally {
-      setDeletedBookId(null);
-    }
-  };
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => confirmDelete(item._id)}
+        >
+          {deletedBookId === item._id ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <Ionicons name="trash-outline" size={20} color={COLORS.primary} />
+          )}
+        </TouchableOpacity>
+      </View>
+    ),
+    [confirmDelete, deletedBookId, renderRatingStars],
+  );
 
-  const confirmDelete = (bookId) => {
-    Alert.alert(
-      "Delete Recommendation",
-      "Are you sure you want to delete this recommendation?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => handleDeleteBook(bookId),
-        },
-      ]
-    );
-  };
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await sleep(500);
     await fetchData();
     setRefreshing(false);
-  };
+  }, [fetchData]);
 
-  if(isLoading && !refreshing) return <Loader/>
+  if (isLoading && !refreshing) return <Loader />;
 
   return (
     <View style={styles.container}>

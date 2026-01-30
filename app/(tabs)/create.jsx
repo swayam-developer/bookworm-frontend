@@ -10,14 +10,12 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import styles from "../../assets/styles/create.styles";
 import { Ionicons } from "@expo/vector-icons";
 import COLORS from "../../constants/colors.js";
 import { useAuthStore } from "../../store/authStore.js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import { API_URL } from "../../constants/api.js";
@@ -33,7 +31,7 @@ export default function create() {
   const router = useRouter();
   const { token } = useAuthStore();
 
-  const renderRatingPicker = () => {
+  const renderRatingPicker = useMemo(() => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
@@ -47,13 +45,13 @@ export default function create() {
             size={32}
             color={i <= rating ? "#f4b400" : COLORS.textSecondary}
           />
-        </TouchableOpacity>
+        </TouchableOpacity>,
       );
     }
     return <View style={styles.ratingContainer}>{stars}</View>;
-  };
+  }, [rating]);
 
-  const pickImage = async () => {
+  const pickImage = useCallback(async () => {
     try {
       if (Platform.OS !== "web") {
         const { status } =
@@ -61,7 +59,7 @@ export default function create() {
         if (status !== "granted") {
           Alert.alert(
             "Permission Denied",
-            "We need camera roll permissions to upload an image"
+            "We need camera roll permissions to upload an image",
           );
           return;
         }
@@ -86,7 +84,7 @@ export default function create() {
             result.assets[0].uri,
             {
               encoding: FileSystem.EncodingType.Base64,
-            }
+            },
           );
           setImageBase64(base64);
         }
@@ -95,9 +93,9 @@ export default function create() {
       console.log("Error picking image", error);
       Alert.alert("Error", "There was a problem selecting your image");
     }
-  };
+  }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!title || !caption || !imageBase64 || !rating) {
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -105,14 +103,7 @@ export default function create() {
     try {
       setLoading(true);
 
-      // get file extension from URI or default to jpeg
-      const uriParts = image.split(".");
-      const fileType = uriParts[uriParts.length - 1];
-      const imageType = fileType
-        ? `image/${fileType.toLowerCase()}`
-        : "image/jpeg";
-
-      const imageDataUrl = `data:${imageType};base64,${imageBase64}`;
+      const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
 
       const response = await fetch(`${API_URL}/books`, {
         method: "POST",
@@ -123,7 +114,7 @@ export default function create() {
         body: JSON.stringify({
           title,
           caption,
-          rating: rating.toString(),
+          rating: rating,
           image: imageDataUrl,
         }),
       });
@@ -143,7 +134,7 @@ export default function create() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [title, caption, imageBase64, rating, token]);
 
   return (
     <KeyboardAvoidingView
@@ -187,7 +178,7 @@ export default function create() {
             {/* Rating */}
             <View style={styles.formGroup}>
               <Text style={styles.label}>Your Rating</Text>
-              {renderRatingPicker()}
+              {renderRatingPicker}
             </View>
 
             {/* Image */}
